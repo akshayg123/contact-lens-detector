@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detection Result</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px;}
+        .container { text-align: center; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.1); max-width: 90%; margin: auto; }
+        h1 { color: #333; margin-bottom: 20px; }
+        img { max-width: 100%; height: auto; border: 1px solid #ddd; border-radius: 8px; margin-top: 15px; }
+        a { display: inline-block; margin-top: 25px; background-color: #007bff; color: white; text-decoration: none; padding: 12px 25px; border-radius: 8px; transition: background-color 0.3s; }
+        a:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Detection Result</h1>
+        <img src="data:image/jpeg;base64,{{ result_image }}" alt="Detection Result">
+        <br>
+        <a href="/">Try Another Image</a>
+    </div>
+</body>
+</html>

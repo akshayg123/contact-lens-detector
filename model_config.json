@@ -1,0 +1,14 @@
+{
+    "id_to_class": {
+        "0": "Foreign_particle",
+        "1": "Leakage",
+        "2": "Saline-level",
+        "3": "Seal-width",
+        "4": "Wrinkle"
+    },
+    "GRID_H": 7,
+    "GRID_W": 7,
+    "IMG_WIDTH": 224,
+    "IMG_HEIGHT": 224,
+    "NUM_CLASSES": 5
+}

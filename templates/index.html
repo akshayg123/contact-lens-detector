@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact Lens Fault Detection</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f4f7f6; }
+        .container { text-align: center; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+        h1 { color: #333; margin-bottom: 25px; }
+        .upload-form { display: flex; flex-direction: column; align-items: center; }
+        input[type="file"] { border: 2px dashed #007bff; padding: 20px; border-radius: 8px; margin-bottom: 20px; cursor: pointer; }
+        button { background-color: #007bff; color: white; border: none; padding: 12px 25px; border-radius: 8px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Upload Contact Lens Image</h1>
+        <form action="/predict" method="post" enctype="multipart/form-data" class="upload-form">
+            <input type="file" name="file" accept="image/png, image/jpeg, image/jpg" required>
+            <button type="submit">Detect Faults</button>
+        </form>
+    </div>
+</body>
+</html>
