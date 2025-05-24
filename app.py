@@ -1,74 +1,76 @@
-# app.py (Corrected for Deployment)
+# app.py (TFLite)
 
 import os
 import json
 import numpy as np
 import cv2
 import tensorflow as tf
-from tensorflow import keras
+# Note: We are no longer using keras.models.load_model
 from flask import Flask, request, render_template, redirect, url_for
 import base64
-import io
 import matplotlib.pyplot as plt
 
 # --- Initialize Flask App ---
 app = Flask(__name__)
 
 # --- Configuration ---
-MODEL_PATH = 'best_contact_lens_detector.keras'
+TFLITE_MODEL_PATH = 'model.tflite' # <-- Using the new model
 CONFIG_PATH = 'model_config.json'
 
-# --- Global Variables to hold the loaded model and config ---
-model = None
+# --- Global Variables ---
+interpreter = None
 config = None
-
-def yolo_style_loss(y_true, y_pred):
-    """
-    Dummy loss function needed for Keras to load the custom model.
-    """
-    return tf.constant(0.0)
+input_details = None
+output_details = None
 
 def load_model_and_config():
     """
-    Loads the trained Keras model and configuration from disk.
-    This function is called once when the server starts.
+    Loads the TFLite model and configuration.
     """
-    global model, config
-    print("✅ Loading model and configuration... This may take a moment.")
+    global interpreter, config, input_details, output_details
+    print("✅ Loading TFLite model and configuration...")
     
-    # Load configuration
-    if not os.path.exists(CONFIG_PATH):
-        raise FileNotFoundError(f"Configuration file not found at {CONFIG_PATH}. Please run train_detector.py first.")
     with open(CONFIG_PATH, 'r') as f:
         config = json.load(f)
 
-    # Load Keras model
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(f"Model file not found at {MODEL_PATH}. Please run train_detector.py first.")
-    model = keras.models.load_model(MODEL_PATH, custom_objects={'yolo_style_loss': yolo_style_loss})
-    
-    print("✅ Model and configuration loaded successfully.")
+    # Load the TFLite model and allocate tensors.
+    interpreter = tf.lite.Interpreter(model_path=TFLITE_MODEL_PATH)
+    interpreter.allocate_tensors()
 
-#  Load the model as soon as the app starts, not in the main block 
-load_model_and_config() # for production, this will run when the server starts
+    # Get input and output tensor details.
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    
+    print("✅ TFLite model and configuration loaded successfully.")
+
+# Load the model once when the app starts
+load_model_and_config()
 
 def run_prediction(image_array):
     """
-    Takes a NumPy image array, runs prediction, and returns an image with bounding boxes.
+    Takes a NumPy image array, runs prediction with the TFLite interpreter,
+    and returns an image with bounding boxes.
     """
-    global model, config # Use the globally loaded model and config
+    global interpreter, config, input_details, output_details
     
     # --- Prepare Image ---
-    image_rgb = cv2.cvtColor(image_array, cv2.COLOR_BGR2RGB)
-    original_height, original_width = image_rgb.shape[:2]
-    image_resized = cv2.resize(image_rgb, (config['IMG_WIDTH'], config['IMG_HEIGHT']))
-    image_normalized = image_resized / 255.0
+    original_height, original_width = image_array.shape[:2]
+    # TFLite model expects a specific input shape and type
+    input_shape = input_details[0]['shape']
+    IMG_HEIGHT, IMG_WIDTH = input_shape[1], input_shape[2]
+    
+    image_resized = cv2.resize(image_array, (IMG_WIDTH, IMG_HEIGHT))
+    # Check the input type the model expects (usually float32)
+    input_type = input_details[0]['dtype']
+    image_normalized = np.array(image_resized, dtype=input_type) / 255.0
     image_batch = np.expand_dims(image_normalized, axis=0)
 
-    # --- Run Prediction ---
-    predictions = model.predict(image_batch)[0]
+    # --- Run Prediction with TFLite Interpreter ---
+    interpreter.set_tensor(input_details[0]['index'], image_batch)
+    interpreter.invoke()
+    predictions = interpreter.get_tensor(output_details[0]['index'])[0]
 
-    # --- Decode Predictions & Apply NMS ---
+    # --- Decode Predictions & Apply NMS (same logic as before) ---
     detected_boxes_list = []
     for r in range(config['GRID_H']):
         for c in range(config['GRID_W']):
@@ -78,6 +80,7 @@ def run_prediction(image_array):
             if pred_confidence < 0.3:
                 continue
             
+            # ... (The rest of the decoding and NMS logic is identical to the previous version)
             pred_x_cell = tf.sigmoid(cell_pred[0]).numpy()
             pred_y_cell = tf.sigmoid(cell_pred[1]).numpy()
             pred_w_img = tf.sigmoid(cell_pred[2]).numpy()
@@ -103,8 +106,7 @@ def run_prediction(image_array):
             detected_boxes_list.append([xmin, ymin, xmax, ymax, predicted_class_id_val, class_score])
 
     if not detected_boxes_list:
-        print("ℹ️ No objects detected, returning original image.")
-        return image_array 
+        return image_array
 
     # NMS logic
     boxes_for_nms = np.array([[b[0], b[1], b[2], b[3]] for b in detected_boxes_list], dtype=np.float32)
@@ -134,7 +136,8 @@ def run_prediction(image_array):
 
     return output_image_draw
 
-# --- Flask Routes ---
+
+# --- Flask Routes (These remain the same) ---
 @app.route('/', methods=['GET'])
 def home():
     return render_template('index.html')
@@ -158,6 +161,4 @@ def predict():
 
 # --- Main Execution (for local development ONLY) ---
 if __name__ == '__main__':
-    # The load_model_and_config() call is now above, so it runs in production too.
-    # This block is now only for running the local dev server.
     app.run(host="0.0.0.0", port=5000, debug=True)
