@@ -1,4 +1,4 @@
-# app.py (Corrected)
+# app.py (Corrected for Deployment)
 
 import os
 import json
@@ -9,7 +9,7 @@ from tensorflow import keras
 from flask import Flask, request, render_template, redirect, url_for
 import base64
 import io
-import matplotlib.pyplot as plt  # <-- THE FIX IS HERE
+import matplotlib.pyplot as plt
 
 # --- Initialize Flask App ---
 app = Flask(__name__)
@@ -25,7 +25,6 @@ config = None
 def yolo_style_loss(y_true, y_pred):
     """
     Dummy loss function needed for Keras to load the custom model.
-    It's not used during inference.
     """
     return tf.constant(0.0)
 
@@ -50,10 +49,12 @@ def load_model_and_config():
     
     print("✅ Model and configuration loaded successfully.")
 
+#  Load the model as soon as the app starts, not in the main block 
+load_model_and_config() # for production, this will run when the server starts
+
 def run_prediction(image_array):
     """
     Takes a NumPy image array, runs prediction, and returns an image with bounding boxes.
-    This is the core logic adapted from your previous script.
     """
     global model, config # Use the globally loaded model and config
     
@@ -68,15 +69,13 @@ def run_prediction(image_array):
     predictions = model.predict(image_batch)[0]
 
     # --- Decode Predictions & Apply NMS ---
-    # This logic is the same as in your predict_image.py script
     detected_boxes_list = []
-    # (Decoding logic: looping through grid, checking confidence, etc.)
     for r in range(config['GRID_H']):
         for c in range(config['GRID_W']):
             cell_pred = predictions[r, c, :]
             pred_conf_logit = cell_pred[4]
             pred_confidence = tf.sigmoid(pred_conf_logit).numpy()
-            if pred_confidence < 0.3: # Using a fixed confidence threshold
+            if pred_confidence < 0.3:
                 continue
             
             pred_x_cell = tf.sigmoid(cell_pred[0]).numpy()
@@ -103,12 +102,11 @@ def run_prediction(image_array):
             ymax = int(ymax_norm * original_height)
             detected_boxes_list.append([xmin, ymin, xmax, ymax, predicted_class_id_val, class_score])
 
-    # If no boxes are detected, return the original image to avoid errors
     if not detected_boxes_list:
         print("ℹ️ No objects detected, returning original image.")
         return image_array 
 
-    # (NMS logic to remove overlapping boxes)
+    # NMS logic
     boxes_for_nms = np.array([[b[0], b[1], b[2], b[3]] for b in detected_boxes_list], dtype=np.float32)
     scores_for_nms = np.array([b[5] for b in detected_boxes_list], dtype=np.float32)
     class_ids_for_nms = np.array([b[4] for b in detected_boxes_list])
@@ -128,7 +126,7 @@ def run_prediction(image_array):
     for xmin, ymin, xmax, ymax, class_id, score in final_boxes_list:
         label = id_to_class.get(class_id, "Unknown")
         hue = class_id / float(config['NUM_CLASSES'])
-        color_rgb_norm = plt.cm.hsv(hue)[:3] # This line caused the error
+        color_rgb_norm = plt.cm.hsv(hue)[:3]
         color_bgr_cv = tuple(int(c * 255) for c in reversed(color_rgb_norm))
         cv2.rectangle(output_image_draw, (xmin, ymin), (xmax, ymax), color_bgr_cv, 2)
         label_text = f"{label}: {score:.2f}"
@@ -136,46 +134,30 @@ def run_prediction(image_array):
 
     return output_image_draw
 
-
+# --- Flask Routes ---
 @app.route('/', methods=['GET'])
 def home():
-    """Renders the main upload page."""
     return render_template('index.html')
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    """Handles the image upload and returns the result."""
     if 'file' not in request.files:
         return redirect(request.url)
-    
     file = request.files['file']
     if file.filename == '':
         return redirect(request.url)
-        
     if file:
-        # Read image file in memory
         filestr = file.read()
         npimg = np.frombuffer(filestr, np.uint8)
-        # Decode the image with OpenCV
         image = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
-
-        # Run detection
         result_image_array = run_prediction(image)
-
-        # Encode the result image to JPEG format in memory
         _, buffer = cv2.imencode('.jpg', result_image_array)
-        # Convert buffer to a Base64 string to embed in HTML
         result_image_base64 = base64.b64encode(buffer).decode('utf-8')
-
-        # Render the result page with the detected image
         return render_template('result.html', result_image=result_image_base64)
-
     return redirect(url_for('home'))
 
-# --- Main Execution ---
+# --- Main Execution (for local development ONLY) ---
 if __name__ == '__main__':
-    # Load the model and config once when the app starts
-    load_model_and_config()
-    # Run the Flask app
-    # 'host="0.0.0.0"' makes it accessible from other devices on your network
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    # The load_model_and_config() call is now above, so it runs in production too.
+    # This block is now only for running the local dev server.
+    app.run(host="0.0.0.0", port=5000, debug=True)
