@@ -102,3 +102,8 @@ The model expects training data in the following format:
 - Based on YOLO architecture principles
 - Implemented using TensorFlow and Keras
 - Web interface powered by Flask
+
+## Deployment(render)
+- Try out my web service at render( download some images from test folder in this repository and try out my project)
+- https://contact-lens-detector.onrender.com
+  
